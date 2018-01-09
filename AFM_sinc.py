@@ -1162,11 +1162,11 @@ def brownian_noise(Temp, f1, kc, Q1, dt, simultime):
     #idx = np.concatenate(  ( np.arange( int(n/2.0+2),n+1,1), np.arange(1,int(n/2.0+1)+1,1  ))  )
     
     #Spectral density of the Brownian force (fundamental mode)
-    Sf0_1 = kc*alpha[0]**4/12.0*kb*Temp/np.pi/f1/Q1
+    Sf0_1 = kc*alpha[0]**4/12.0*kb*Temp/np.pi/f1/Q1*4  #multiplied by four to take into account mass loading in liquid
     Sf1 = Sf0_1*np.ones(len(f))  #white noise
-    Sf0_2=(kc*alpha[1]**4/12.0)*kb*Temp/np.pi/f2/Q2
+    Sf0_2=(kc*alpha[1]**4/12.0)*kb*Temp/np.pi/f2/Q2*4  #multiplied by four to take into account mass loading in liquid
     Sf2=Sf0_2*np.ones(len(f)) # white noise
-    Sf0_3=(kc*alpha[2]**4/12.0)*kb*Temp/np.pi/f3/Q3
+    Sf0_3=(kc*alpha[2]**4/12.0)*kb*Temp/np.pi/f3/Q3*4  #multiplied by four to take into account mass loading in liquid
     Sf3=Sf0_3*np.ones(len(f)) # white noise
     
     theta1 = 2.0*np.pi*np.random.rand(n/2) - np.pi
@@ -1182,8 +1182,8 @@ def brownian_noise(Temp, f1, kc, Q1, dt, simultime):
     
     return nf1, nf2, nf3, t
     
-
-def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m1, zb, printstep = 1, Ge = 0.0, Q1=2.0, Q2=8.0, Q3=12.0, nu=0.5, Ndy = 1000, dmax = 10.0e-9, Temp = 273.16+25):
+numba_sinc = jit()(verlet_sinc_noise)
+def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m1, zb, Fb1, Fb2, Fb3, printstep = 1, Ge = 0.0, Q1=2.0, Q2=8.0, Q3=12.0, nu=0.5, Ndy = 1000, dmax = 10.0e-9, Temp = 273.16+25):
     """This function is to perform sinc excitation simulations of a parabolic probe penetrating an SLS semi-infinite solid"""
     """It is based on the method of dimensionality reduction of Valentin Popov and is aligned with Ting's theory"""
     """Van der Waals interaction is not taken into account, considered to be screened by the liquid environment"""
@@ -1232,8 +1232,8 @@ def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m
     ar = 0.0  #contact radius
     #Initializing Verlet variables
     z1, z2, z3, v1, v2, v3, z1_old, z2_old, z3_old = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    numba_sinc = jit()(verlet_sinc_noise)
-    Fb1, Fb2, Fb3, _ = brownian_noise(Temp, fo1, k_m1, Q1, dt, simultime)
+    
+    
         
     i = 0  #counter for positions of time series of brownian noise
         
@@ -1242,7 +1242,7 @@ def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m
     while i < len(Fb1):
         t = t + dt
         F_t =   A*np.sin((t-to)*np.pi*BW)/((t-to)*np.pi*BW) #*np.cos(2.0*np.pi*fs*(t-to)) #np.exp(1.0j*2.0*np.pi*fs*(t-to))
-        F_t = 0.0 #temporal
+        #F_t = 0.0 #temporal to get response only coming from thermal noise
         tip, z1, z2, z3, v1, v2, v3, z1_old, z2_old, z3_old = numba_sinc(F_t, zb, Q1, Q2, Q3, k_m1, k_m2, k_m3, mass, t, z1, z2,z3, v1,v2,v3, z1_old, z2_old, z3_old, F, dt, fo1,fo2,fo3, Fb1[i], Fb2[i], Fb3[i])
         i = i + 1 #advancing the brownian noise position counter
         if tip < 0.0:  #indentation is only meaningful if probe is lower than zero position (original position of viscoelastic foundation)
