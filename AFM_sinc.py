@@ -1183,6 +1183,7 @@ def brownian_noise(Temp, f1, kc, Q1, dt, simultime):
     return nf1, nf2, nf3, t
     
 numba_sinc = jit()(verlet_sinc_noise)
+
 def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m1, zb, Fb1, Fb2, Fb3, printstep = 1, Ge = 0.0, Q1=2.0, Q2=8.0, Q3=12.0, nu=0.5, Ndy = 1000, dmax = 10.0e-9, Temp = 273.16+25):
     """This function is to perform sinc excitation simulations of a parabolic probe penetrating an SLS semi-infinite solid"""
     """It is based on the method of dimensionality reduction of Valentin Popov and is aligned with Ting's theory"""
@@ -1293,6 +1294,193 @@ def MDR_SLS_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m
         
     return np.array(t_a), np.array(probe_a), np.array(F_a), np.array(ar_a), np.array(sample), np.array(Fsinc_a), np.array(z1_a), np.array(z2_a), np.array(z3_a)
    
+
+def MDR_SLS_sinc_noise_sader(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m1, zb, Fb1, Fb2, Fb3, printstep = 1, Ge = 0.0, Q1=2.116, Q2=4.431, Q3=6.764, nu=0.5, Ndy = 1000, dmax = 10.0e-9, Temp = 273.16+25):
+    """This function is to perform sinc excitation simulations of a parabolic probe penetrating an SLS semi-infinite solid"""
+    """It is based on the method of dimensionality reduction of Valentin Popov and is aligned with Ting's theory"""
+    """Van der Waals interaction is not taken into account, considered to be screened by the liquid environment"""
+    """This function receives the SLS parameters (G, tau, Ge) in its Maxwell configuration (an equilibrium spring in parallel with a Maxwell arm)"""
+    """Description of input paramters: A - amplitude of the applied sinc, to - centered time of sinc, BW - bandwidth of the applied sinc"""
+    """Input continuation: R- radius of durvature of the parabolic tip apex, dt - simulation timestep, startprint - initial time at which the data is printed"""
+    """Input continuation: simultime - total simulation time, fo1 - resonance frequency of the 1st eigenmode, k_m1 - cantilever's first eigenmode stiffeness, zb - cantilever equilibrium position with respect to the sample"""
+    """Input continuation: Q1, Q2, Q3 - 1st, 2nd and 3rd eigenmode quality factor, nu - samples's Poisson ratio, Ndy - number of elements in the Wrinkler foundation (the larger the more exact the solution but more computationally expensive), dmax - approximate larger indentation"""
+    """Created in Jan 11th 2018, added feature to include EOM's based on calculations of k_L, Q, omega based on Sader's method"""
+    fo2 = 145.9 #kHz, calculated from Sader
+    fo3 = 429.0 #kHz, calculated from Sader's method
+    k_m2 = 9.822 #N/m calculated from Sader's method
+    k_m3 = 76.99 #N/m calculated from Sader's method
+    Q1 = 2.116 #calculated from Sader's method
+    Q2 = 4.431 #calculated from Sader's method
+    Q3 = 6.769 #calculated from Sader's method
+    mass = k_m1/(2.0*np.pi*fo1)**2      
+    eta = tau*G  
+    amax = (R*dmax)**0.5
+    y_n = np.linspace(0.0, amax, Ndy)   #1D viscoelastic foundation with specified number of elements
+    dy = y_n[1] #space step in the 1D viscoelastic foundation
+    g_y = y_n**2/R   #1D function according to Wrinkler foundation  (Popov's rule)
+    #differential viscoelastic properties of each individual element (see Eq 11: Popov, V. L., & Hess, M. (2014). Method of dimensionality reduction in contact mechanics and friction: a users handbook. I. Axially-symmetric contacts. Facta Universitatis, Series: Mechanical Engineering, 12(1), 1-14.)
+    ke = 2.0/(1-nu)*Ge*dy   #effective stiffness of the spring alone in parallel with the Maxwell arm in the mechanical-SLS
+    k = 2.0/(1-nu)*G*dy  #effective stiffness of the spring in the Maxwell arm present in the mechanical-SLS
+    c = 2.0/(1-nu)*eta*dy #effective dashpot coefficient in the Maxwell arm present in the mechanical-SLS
+    kg = k + ke
+    #end of inserting viescoelastic properties of individual elements
+    
+    tip_n, x_n = np.zeros(len(y_n)), np.zeros(len(y_n))    #position of the base of each SLS dependent on position
+    xc_dot_n = np.zeros(len(y_n) )    #velocity of dashpot
+    xc_n = np.zeros( len(y_n) )    #position of the dashpot SLS dependent on time as function of position
+    F_n =  np.zeros(len(y_n))  #force on each SLS element
+    F_a = []   #initializing total force    
+    t_a = []  #initializing time
+    d_a = []  #sample position, penetration
+    probe_a = []   #array that will contain tip's position
+    sample = []
+    Fsinc_a = []
+    z1_a = []
+    z2_a = []
+    z3_a = []
+    t = 0.0
+    F = 0.0
+    printcounter = 1
+    if printstep == 1:
+        printstep = dt
+    ar_a = [] #array with contact radius
+    ar = 0.0  #contact radius
+    #Initializing Verlet variables
+    z1, z2, z3, v1, v2, v3, z1_old, z2_old, z3_old = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     
     
         
+    i = 0  #counter for positions of time series of brownian noise
+        
+        
+                
+    while i < len(Fb1):
+        t = t + dt
+        F_t =   A*np.sin((t-to)*np.pi*BW)/((t-to)*np.pi*BW) #*np.cos(2.0*np.pi*fs*(t-to)) #np.exp(1.0j*2.0*np.pi*fs*(t-to))
+        #F_t = 0.0 #temporal to get response only coming from thermal noise
+        tip, z1, z2, z3, v1, v2, v3, z1_old, z2_old, z3_old = numba_sinc_sader(F_t, zb, Q1, Q2, Q3, k_m1, k_m2, k_m3, mass, t, z1, z2,z3, v1,v2,v3, z1_old, z2_old, z3_old, F, dt, fo1,fo2,fo3, Fb1[i], Fb2[i], Fb3[i])
+        i = i + 1 #advancing the brownian noise position counter
+        if tip < 0.0:  #indentation is only meaningful if probe is lower than zero position (original position of viscoelastic foundation)
+            d = -1.0*tip  #forcing indentation to be positive  (this is the indentation)
+        else:
+            d = 0.0
+        if t > ( startprint + printstep*printcounter):
+            F_a.append(F)
+            t_a.append(t)   
+            d_a.append(d)
+            ar_a.append(ar)        
+            probe_a.append(tip)
+            sample.append(x_n[0])
+            Fsinc_a.append(F_t)
+            z1_a.append(z1)
+            z2_a.append(z2)
+            z3_a.append(z3)
+                   
+            printcounter += 1
+        
+        F = 0.0  #initializing to zero before adding up the differential forces in each element
+        ar = 0.0  #initializing contact radius to zero
+        for n in range(len(y_n)):  #advancing in space
+            tip_n[n] =  g_y[n] - d
+            if tip_n[n] > 0.0: #assuring there is no stretch of elements out of the contact area
+                tip_n[n] = 0.0
+            
+            #this next portion of code has the force balance of each mechanical-SLS element to relate force with discplacement of each specific node where the individual SLS element is located
+            if tip_n[n] > x_n[n]: #aparent non contact
+                if (k*xc_n[n])/kg > tip_n[n]:  #contact, the sample surface surpassed the tip in the way up
+                    x_n[n] = tip_n[n]
+                    F_n[n] =  - ke*x_n[n] - k*(x_n[n]-xc_n[n])
+                else:  #true non-contact
+                    x_n[n] = k*xc_n[n]/kg
+                    F_n[n] = 0.0
+            else: #contact region, tip is lower than the sample's surface
+                x_n[n] = tip_n[n]
+                F_n[n] =  - ke*x_n[n] - k*(x_n[n]-xc_n[n])
+            #getting position of dashpot            
+            xc_dot_n[n] = k*(x_n[n]-xc_n[n])/c
+            xc_n[n] += xc_dot_n[n]*dt
+            
+            #Now we perform the (sumation) integral of the individual forces in each individual mechanical SLS element
+            if F_n[n] > 0.0:
+                F = F + F_n[n] #getting total tip-sample force
+                ar = y_n[n]   #getting actual contact radius        
+        F *= 2.0  #multiplying by two the integral because the limits should go from -a to a (see Eq 12: Popov, V. L., & Hess, M. (2014). Method of dimensionality reduction in contact mechanics and friction: a users handbook. I. Axially-symmetric contacts. Facta Universitatis, Series: Mechanical Engineering, 12(1), 1-14.)
+        
+    return np.array(t_a), np.array(probe_a), np.array(F_a), np.array(ar_a), np.array(sample), np.array(Fsinc_a), np.array(z1_a), np.array(z2_a), np.array(z3_a)
+    
+def brownian_noise_sader(Temp, f1, k1, Q1, dt, simultime):
+    """This function returns a time series brownian force according to a power spectral density of a white noise"""
+    """The values for Q1, k_m2, fo2, Q2, k_m3, Q3, fo3 are calculated according to Sader's method for the specific case of k_m1 = 0.25 N/m, and fo1 = 20 kHz"""
+    kb = 1.38064852e-23
+    #scaling for higher modes
+    f2 = 145.9e3 #Hz, calculated from Sader
+    f3 = 429.0e3 #Hz, calculated from Sader's method
+    k2 = 9.822 #N/m calculated from Sader's method
+    k3 = 76.99 #N/m calculated from Sader's method
+    Q1 = 2.116 #calculated from Sader's method
+    Q2 = 4.431 #calculated from Sader's method
+    Q3 = 6.769 #calculated from Sader's method
+    
+    df = 1.0/simultime
+    n = int(simultime/dt)
+    t = np.concatenate( (np.arange(0,int(n/2.0)+1,1), np.arange(int(-n/2.0)+1,0,1)  ) )*dt
+    f = np.concatenate( (np.arange(0,int(n/2.0)+1,1), np.arange(int(-n/2.0)+1,0,1)  ) )*dt
+    #idx = np.concatenate(  ( np.arange( int(n/2.0+2),n+1,1), np.arange(1,int(n/2.0+1)+1,1  ))  )
+    
+    #Spectral density of the Brownian force (fundamental mode)
+    Sf0_1 = (2.0*kb*Temp)*(4*k1)/(2.0*np.pi*f1)/Q1  #multiplied by four to take into account mass loading in liquid
+    Sf1 = Sf0_1*np.ones(len(f))  #white noise
+    Sf0_2=(2.0*kb*Temp)*(4*k2)/(2.0*np.pi*f2)/Q2  #multiplied by four to take into account mass loading in liquid
+    Sf2=Sf0_2*np.ones(len(f)) # white noise
+    Sf0_3=(2.0*kb*Temp)*(4*k3)/(2.0*np.pi*f3)/Q3  #multiplied by four to take into account mass loading in liquid
+    Sf3=Sf0_3*np.ones(len(f)) # white noise
+    
+    theta1 = 2.0*np.pi*np.random.rand(n/2) - np.pi
+    theta2 = theta1[::-1]
+    theta3 = -theta2[1:len(theta2):1]
+    theta4 = np.concatenate(  (theta1, theta3) )
+    theta = np.insert(theta4,0,0)
+    
+    #Getting the time series of the noise
+    nf1 = np.real( np.fft.ifft(np.sqrt(Sf1*df)* np.exp(1.0j*theta)) ) *n
+    nf2 = np.real( np.fft.ifft(np.sqrt(Sf2*df)* np.exp(1.0j*theta)) ) *n
+    nf3 = np.real( np.fft.ifft(np.sqrt(Sf3*df)* np.exp(1.0j*theta)) ) *n
+    
+    return nf1, nf2, nf3, t
+
+
+
+###THe next function is being built
+def verlet_sinc_noise_sader(F_t, zb, Q1, Q2, Q3, k_L1, k_L2, k_L3, mass, time, z1, z2,z3, v1,v2,v3, z1_old, z2_old, z3_old, Fts, dt, fo1,fo2,fo3, Fb1, Fb2, Fb3):
+    """This function performs verlet algorithm for integration of differential equation of harmonic oscillator"""
+    """for the case of sinc excitation at the tip"""
+    """Brownian noise is included as additional excitation force, Fb1, Fb2, Fb3 correspond to the time series brownian forces added to each individual cantilever mode"""    
+    
+    a1 = ( -z1 - v1/(Q1*(fo1*2*np.pi)) + (F_t + Fts + Fb1)/k_L1  )* (fo1*2.0*np.pi)**2
+    a2 = ( -z2 - v2/(Q2*(fo2*2*np.pi)) + (F_t + Fts + Fb2)/k_L2  )* (fo2*2.0*np.pi)**2
+    a3 = ( -z3 - v3/(Q3*(fo3*2*np.pi)) + (F_t + Fts + Fb3)/k_L3  )* (fo3*2.0*np.pi)**2
+    
+    #Verlet algorithm (central difference) to calculate position of the tip
+    z1_new = 2*z1 - z1_old + a1*pow(dt, 2)
+    z2_new = 2*z2 - z2_old + a2*pow(dt, 2)
+    z3_new = 2*z3 - z3_old + a3*pow(dt, 2)
+
+    #central difference to calculate velocities
+    v1 = (z1_new - z1_old)/(2*dt)
+    v2 = (z2_new - z2_old)/(2*dt)
+    v3 = (z3_new - z3_old)/(2*dt)
+    
+    #Updating z1_old and z1 for the next run
+    z1_old = z1
+    z1 = z1_new
+    
+    z2_old = z2
+    z2 = z2_new
+    
+    z3_old = z3
+    z3 = z3_new
+    
+    tip = z1 + z2 + z3 + zb
+    #tip_v = v1 + v2 + v3
+    return tip, z1, z2, z3, v1, v2, v3, z1_old, z2_old, z3_old
+numba_sinc_sader = jit()(verlet_sinc_noise_sader)

@@ -25,7 +25,7 @@ print(base)
 os.chdir(os.path.dirname(path))
 
 
-from AFM_sinc import MDR_SLS_sinc, MDR_SLS_sinc_noise, brownian_noise
+from AFM_sinc import MDR_SLS_sinc, MDR_SLS_sinc_noise_sader, brownian_noise_sader
 
 #CANTILEVER AND SAMPLE PARAMETERS
 R = 10.0e-9  #radius of curvature of the parabolic tip apex
@@ -35,11 +35,13 @@ fo1 =20.0e3  #cantilever 1st mode resonance frequency
 omega = 2.0*np.pi*fo1
 period1 = 1.0/fo1  #fundamental period
 to = 7.0*period1   #centered time of the sinc excitation
-fo2 = 6.27*fo1
-fo3 = 17.6*fo1
-Q1 = 2.0 #cantilever's 1st mode quality factor
-Q2 = 8.0
-Q3 = 12.0
+fo2 = 145.9e3 #Hz, calculated from Sader
+fo3 = 429.0e3 #Hz, calculated from Sader's method
+k_m2 = 9.822 #N/m calculated from Sader's method
+k_m3 = 76.99 #N/m calculated from Sader's method
+Q1 = 2.116 #calculated from Sader's method
+Q2 = 4.431 #calculated from Sader's method
+Q3 = 6.769 #calculated from Sader's method
 BW = 2.5*fo1*2.0  #excitation bandwith of sinc function
 k_m1 =  0.25 #cantilever's 1st mode stiffness
 
@@ -70,10 +72,10 @@ np.savetxt('FreeOscillation_NoNoise.txt', np.array((t-to, Fts, Fsinc, z1, z2, z3
 
 #GETIING TEMPORAL TRACES OF BROWNIAN FORCE ARISEN FROM THERNAL NOISE
 Temp = 273.16+25
-Fb1, Fb2, Fb3, _ = brownian_noise(Temp, fo1, k_m1, Q1, dt, simultime)
+Fb1, Fb2, Fb3, _ = brownian_noise_sader(Temp, fo1, k_m1, Q1, dt, simultime)
 
 ###NOW GETTING THE RESULTS OF FREE OSCILLATION WITH NOISE
-jit_sinc_noise = jit()(MDR_SLS_sinc_noise)
+jit_sinc_noise = jit()(MDR_SLS_sinc_noise_sader)
 
 
 t_n, tip_n, Fts_n, _,_, Fsinc_n, z1_n, z2_n, z3_n = jit_sinc_noise(A, to, BW, G, tau, R, dt, startprint, simultime, fo1, k_m1, zb, Fb1, Fb2, Fb3, printstep, Ge, Q1, Q2, Q3, nu, 2, dmax, Temp)
