@@ -54,8 +54,6 @@ os.chdir(base)
 from AFM_sinc import MDR_SLS_sinc_noise_sader, brownian_noise_sader
 
 Temp = 273.16 + 25
-dt = period3/1.0e4
-printstep = period3/1.0e2
 Fb1, Fb2, Fb3, _ = brownian_noise_sader(Temp, fo1, k_m1, Q1, dt, simultime)
 
 A = -6.8e-9 #amplitude of the sinc excitation
@@ -81,7 +79,7 @@ Ge_mpa = Ge/1.0e6
 tau_us = tau_m*1.0e6
 print('G: %.3f MPa, Ge: %.3f MPa, tau: %.5f us'%(G_mpa, Ge_mpa, tau_us))
 t, tip, Fts, ca, sample, Fsinc, z1, z2, z3 = mdr_jit(A, to , BW, G, tau_m, R, dt, startprint, simultime, fo1, k_m1, zb, Fb1, Fb2, Fb3, printstep, Ge, Q1, Q2, Q3, nu, Ndy, dmax, Temp)
-np.savetxt('wNoise_Gg5_tau1_A13.txt', np.array((t-to, Fts, Fsinc, z1, z2, z3)).T, header = 'time(s)\tFts(N)\tSinc_Force(N)\tz1(m)\tz2(m)\tz3(m)', delimiter = '\t')
+np.savetxt('wNoise_Gg5_tau1_A6.txt', np.array((t-to, Fts, Fsinc, z1, z2, z3)).T, header = 'time(s)\tFts(N)\tSinc_Force(N)\tz1(m)\tz2(m)\tz3(m)', delimiter = '\t')
         
 
 """

@@ -54,8 +54,6 @@ os.chdir(base)
 from AFM_sinc import MDR_SLS_sinc_noise_sader, brownian_noise_sader
 
 Temp = 273.16 + 25
-dt = period3/1.0e4
-printstep = period3/1.0e2
 Fb1, Fb2, Fb3, _ = brownian_noise_sader(Temp, fo1, k_m1, Q1, dt, simultime)
 
 A = -13.6e-9 #amplitude of the sinc excitation
