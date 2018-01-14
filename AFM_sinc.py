@@ -1305,8 +1305,8 @@ def MDR_SLS_sinc_noise_sader(A, to, BW, G, tau, R, dt, startprint, simultime, fo
     """Input continuation: simultime - total simulation time, fo1 - resonance frequency of the 1st eigenmode, k_m1 - cantilever's first eigenmode stiffeness, zb - cantilever equilibrium position with respect to the sample"""
     """Input continuation: Q1, Q2, Q3 - 1st, 2nd and 3rd eigenmode quality factor, nu - samples's Poisson ratio, Ndy - number of elements in the Wrinkler foundation (the larger the more exact the solution but more computationally expensive), dmax - approximate larger indentation"""
     """Created in Jan 11th 2018, added feature to include EOM's based on calculations of k_L, Q, omega based on Sader's method"""
-    fo2 = 145.9 #kHz, calculated from Sader
-    fo3 = 429.0 #kHz, calculated from Sader's method
+    fo2 = 145.9e3 #Hz, calculated from Sader
+    fo3 = 429.0e3 #Hz, calculated from Sader's method
     k_m2 = 9.822 #N/m calculated from Sader's method
     k_m3 = 76.99 #N/m calculated from Sader's method
     Q1 = 2.116 #calculated from Sader's method
